@@ -1,0 +1,15 @@
+{
+    "files.associations": {
+        "string.h": "c",
+        "stdlib.h": "c",
+        "evp.h": "c",
+        "stdbool.h": "c",
+        "rand.h": "c",
+        "building_views.h": "c",
+        "omp.h": "c",
+        "mpc_prove_functions.h": "c",
+        "stdio.h": "c",
+        "stdint.h": "c",
+        "cstdlib": "c"
+    }
+}
