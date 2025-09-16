@@ -1,15 +1,9 @@
 {
-    "files.associations": {
-        "string.h": "c",
-        "stdlib.h": "c",
-        "evp.h": "c",
-        "stdbool.h": "c",
-        "rand.h": "c",
-        "building_views.h": "c",
-        "omp.h": "c",
-        "mpc_prove_functions.h": "c",
-        "stdio.h": "c",
-        "stdint.h": "c",
-        "cstdlib": "c"
-    }
+  "clang-format.executable": "clang-format",
+  "clang-format.style": "file",
+  "editor.defaultFormatter": "xaver.clang-format",
+  "[cpp]": {
+    "editor.defaultFormatter": "xaver.clang-format"
+  },
+  "editor.formatOnSave": true
 }
