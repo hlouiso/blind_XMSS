@@ -33,8 +33,15 @@ int main(int argc, char *argv[])
     fprintf(f, "0\n"); // index set to 0
 
     fclose(f);
+    printf("======================================================================\n\n");
     printf("MSS_secret_key.txt generated\n");
     printf("Reminder: MSS_sk = (sk_seed, leaf_index)\n");
+    printf("Your secret key is:\nsk_seed = ");
+    for (size_t i = 0; i < 32; i++)
+    {
+        printf("%02X", sk_seed[i]);
+    }
+    printf("\nleaf_index set to 0\n\n");
 
     pk_extract(sk_seed); // call to pk_gen function to generate the public key and save it in MSS_public_key.txt
 

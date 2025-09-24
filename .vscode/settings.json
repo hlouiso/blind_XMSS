@@ -7,6 +7,8 @@
   },
   "editor.formatOnSave": true,
   "files.associations": {
-    "rand.h": "c"
+    "rand.h": "c",
+    "stdio.h": "c",
+    "stdint.h": "c"
   }
 }
