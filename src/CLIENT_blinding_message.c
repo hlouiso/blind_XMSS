@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
     unsigned char final_input[SHA256_DIGEST_LENGTH + BLIND_KEY_LEN] = {0};
     unsigned char commitment[SHA256_DIGEST_LENGTH] = {0};
 
-    printf("Enter your message: ");
+    printf("\nEnter your message: ");
     len = getline(&message, &bufsize, stdin);
 
     if (len == -1)
@@ -66,8 +66,19 @@ int main(int argc, char *argv[])
 
     SHA256(final_input, SHA256_DIGEST_LENGTH + BLIND_KEY_LEN, commitment);
 
-    printf("\nBlinded_message = SHA256(SHA256(m) || r):\n");
-    print_hex(commitment, SHA256_DIGEST_LENGTH);
+    unsigned char final_commitment[2 * SHA256_DIGEST_LENGTH] = {0};
+    memcpy(final_commitment, commitment, SHA256_DIGEST_LENGTH);
+
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++)
+    {
+        final_commitment[SHA256_DIGEST_LENGTH + i] = ~commitment[i];
+    }
+
+    printf("\nFinal commitment = (commitment || ~commitment),\n");
+    printf("with commitment = SHA256(SHA256(m) || r)");
+    printf("\n\nFinal commitment (64 bytes):\n\n");
+    print_hex(final_commitment, 2 * SHA256_DIGEST_LENGTH);
+    printf("\n");
 
     return 0;
 }

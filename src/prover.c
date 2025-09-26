@@ -10,18 +10,19 @@
 #include <string.h>
 
 #include <openssl/rand.h>
+#include <openssl/sha.h>
 
 #define CH(e, f, g) ((e & f) ^ ((~e) & g)) // Chooses f if e = 0 and g if e = 1
 
-z prove(int e, unsigned char keys[3][16], unsigned char rs[3][4], View views[3])
+z prove(int e, unsigned char keys[3][32], unsigned char rs[3][32], View views[3])
 {
     z z;
-    memcpy(z.ke, keys[e], 16);
-    memcpy(z.ke1, keys[(e + 1) % 3], 16);
+    memcpy(z.ke, keys[e], 32);
+    memcpy(z.ke1, keys[(e + 1) % 3], 32);
     z.ve = views[e];
     z.ve1 = views[(e + 1) % 3];
-    memcpy(z.re, rs[e], 4);
-    memcpy(z.re1, rs[(e + 1) % 3], 4);
+    memcpy(z.re, rs[e], 32);
+    memcpy(z.re1, rs[(e + 1) % 3], 32);
 
     return z;
 }
@@ -39,36 +40,18 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    setbuf(stdout, NULL);
-    srand((unsigned)time(NULL));
-    init_EVP();
-    openmp_thread_setup(); // OpenMP = Multi Threading
-
-    unsigned char garbage[4];
-    if (RAND_bytes(garbage, 4) != 1)
-    {
-        perror("RAND_bytes failed crypto, aborting\n");
-        return 1;
-    }
-
     // Getting m
     char *message = NULL;
     size_t bufferSize = 0;
 
     printf("\nPlease enter your message:\n");
     int length = getline(&message, &bufferSize, stdin);
-    if (length == -1)
-    {
-        perror("Error reading input");
-        free(message);
-        return 1;
-    }
 
     message[strlen(message) - 1] = '\0'; // to remove '\n' at the end
 
     // Computing message digest
-    unsigned char digest[SHA256_DIGEST_LENGTH];
-    SHA256((unsigned char *)message, strlen(message), digest);
+    unsigned char message_digest[SHA256_DIGEST_LENGTH];
+    SHA256((unsigned char *)message, strlen(message), message_digest);
     free(message);
 
     // Getting commitment key
@@ -77,7 +60,7 @@ int main(int argc, char *argv[])
 
     bool read_error = false;
 
-    printf("\nEnter your commitment key in UPPERCASE hexadecimal (46 hex chars):\n");
+    printf("\nEnter your commitment key in UPPERCASE hexadecimal (64 hex chars):\n");
     if (fgets(hexInput, sizeof(hexInput), stdin) == NULL)
     {
         read_error = true;
@@ -90,48 +73,38 @@ int main(int argc, char *argv[])
         commitment_key[i] = (unsigned char)byte;
     }
 
-    // Getting commitment
-    char hexInput2[2 * COMMIT_LEN + 2];
-    unsigned char commitment[COMMIT_LEN];
-
-    printf("\nEnter the commitment in UPPERCASE hexadecimal (64 hex chars):\n");
-    if (fgets(hexInput2, sizeof(hexInput2), stdin) == NULL)
-    {
-        read_error = true;
-    }
-
-    if (read_error)
-    {
-        printf("Error reading input. Please ensure you enter the commitment key and commitment correctly.\n");
-        return 1;
-    }
-
-    for (int i = 0; i < COMMIT_LEN; i++)
-    {
-        unsigned int byte;
-        sscanf(&hexInput2[i * 2], "%2x", &byte);
-        commitment[i] = (unsigned char)byte;
-    }
-    printf("\n");
-
-    // Getting WOTS signature
+    // Getting MSS signature
     int c1;
     int c2;
-    FILE *fp = fopen("signature.txt", "r");
-    unsigned char sigma[8192];
-    for (int i = 0; i < 256; i++)
+    FILE *f = fopen("signature.txt", "r");
+
+    // getting leaf index
+    unsigned char leaf_index_bytes[4];
+    char buf[32];
+    fgets(buf, sizeof(buf), f);
+    uint32_t leaf_index = (uint32_t)strtoul(buf, NULL, 10);
+    leaf_index_bytes[0] = (leaf_index >> 24) & 0xFF;
+    leaf_index_bytes[1] = (leaf_index >> 16) & 0xFF;
+    leaf_index_bytes[2] = (leaf_index >> 8) & 0xFF;
+    leaf_index_bytes[3] = (leaf_index) & 0xFF;
+        
+    // Lamport signature
+    unsigned char sigma[Lamport_len * SHA256_DIGEST_LENGTH];
+
+    for (int i = 0; i < 512; i++)
+    {
         for (int j = 0; j < 32; j++)
         {
-            c1 = fgetc(fp);
+            c1 = fgetc(f);
             while (c1 == '\n')
             {
-                c1 = fgetc(fp);
+                c1 = fgetc(f);
             }
 
-            c2 = fgetc(fp);
+            c2 = fgetc(f);
             while (c2 == '\n')
             {
-                c2 = fgetc(fp);
+                c2 = fgetc(f);
             }
 
             c1 = (c1 <= '9') ? c1 - '0' : c1 - 'A' + 10;
@@ -139,16 +112,46 @@ int main(int argc, char *argv[])
 
             sigma[i * 32 + j] = (char)((c1 << 4) | c2);
         }
-    fclose(fp);
+    }
+
+    // PATH
+    unsigned char PATH[10 * SHA256_DIGEST_LENGTH];
+    for (int i = 0; i < 10 * SHA256_DIGEST_LENGTH; i++)
+    {
+        c1 = fgetc(f);
+        while (c1 == '\n')
+        {
+            c1 = fgetc(f);
+        }
+
+        c2 = fgetc(f);
+        while (c2 == '\n')
+        {
+            c2 = fgetc(f);
+        }
+
+        c1 = (c1 <= '9') ? c1 - '0' : c1 - 'A' + 10;
+        c2 = (c2 <= '9') ? c2 - '0' : c2 - 'A' + 10;
+
+        PATH[i] = (char)((c1 << 4) | c2);
+    }
 
     // Building input
     unsigned char input[INPUT_LEN];
-    memcpy(input, commitment_key, 23);
-    memcpy(input + 23, commitment, 32);
-    memcpy(input + 55, sigma, 8192);
+    memcpy(input, commitment_key, 32);
+    memcpy(input + 32, leaf_index_bytes, 4);
+    memcpy(input + 32 + 4, sigma, Lamport_len * SHA256_DIGEST_LENGTH);
+    memcpy(input + 32 + 4 + Lamport_len * SHA256_DIGEST_LENGTH, PATH, 10 * SHA256_DIGEST_LENGTH);
+
+    const int r_index = 0;
+    const int leaf_index_index = 32;
+    const int sigma_index = 36;
+    const int path_index = 36 + Lamport_len * SHA256_DIGEST_LENGTH;
+
+    fclose(f);
 
     // Generating keys
-    unsigned char keys[NUM_ROUNDS][3][16];
+    unsigned char keys[NUM_ROUNDS][3][32];
 
     if (RAND_bytes((unsigned char *)keys, NUM_ROUNDS * 3 * 16) != 1)
     {
@@ -157,29 +160,28 @@ int main(int argc, char *argv[])
     }
 
     // Getting public_key
-    fp = fopen("public_key.txt", "r");
-    unsigned char public_key[8192];
-    for (int i = 0; i < 256; ++i)
-        for (int j = 0; j < 32; ++j)
+    f = fopen("public_key.txt", "r");
+    unsigned char public_key[SHA256_DIGEST_LENGTH];
+    for (int j = 0; j < 32; ++j)
+    {
+        c1 = fgetc(f);
+        while (c1 == '\n')
         {
-            c1 = fgetc(fp);
-            while (c1 == '\n')
-            {
-                c1 = fgetc(fp);
-            }
-
-            c2 = fgetc(fp);
-            while (c2 == '\n')
-            {
-                c2 = fgetc(fp);
-            }
-
-            c1 = (c1 <= '9') ? c1 - '0' : c1 - 'A' + 10;
-            c2 = (c2 <= '9') ? c2 - '0' : c2 - 'A' + 10;
-
-            public_key[i * 32 + j] = (char)((c1 << 4) | c2);
+            c1 = fgetc(f);
         }
-    fclose(fp);
+
+        c2 = fgetc(f);
+        while (c2 == '\n')
+        {
+            c2 = fgetc(f);
+        }
+
+        c1 = (c1 <= '9') ? c1 - '0' : c1 - 'A' + 10;
+        c2 = (c2 <= '9') ? c2 - '0' : c2 - 'A' + 10;
+
+        public_key[j] = (char)((c1 << 4) | c2);
+    }
+    fclose(f);
 
     // Sharing secrets
     unsigned char shares[NUM_ROUNDS][3][INPUT_LEN];
@@ -212,7 +214,7 @@ int main(int argc, char *argv[])
         for (int j = 0; j < 3; j++)
         {
             randomness[k][j] = malloc(Random_Bytes_Needed * sizeof(unsigned char));
-            getAllRandomness(keys[k][j], randomness[k][j], Random_Bytes_Needed);
+            getAllRandomness(keys[k][j], randomness[k][j]);
             localViews[k][j].y = malloc(ySize * sizeof(uint32_t));
         }
     }
@@ -292,7 +294,7 @@ int main(int argc, char *argv[])
     printf("================================================================\n");
     if (error)
     {
-        fprintf(stderr, "\nError: invalid signature\n\n");
+        frintf(stderr, "\nError: invalid signature\n\n");
         exit(EXIT_FAILURE);
     }
     printf("\nProof generated successfully in 'proof.bin'.\n\n");

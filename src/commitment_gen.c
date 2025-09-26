@@ -59,8 +59,20 @@ int main(int argc, char *argv[])
 
     SHA256(final_input, SHA256_DIGEST_LENGTH + R_LEN, commitment);
 
-    printf("\nCommitment = SHA256(SHA256(m) || r):\n");
     print_hex(commitment, SHA256_DIGEST_LENGTH);
+
+    unsigned char final_commitment[2 * SHA256_DIGEST_LENGTH] = {0};
+    memcpy(final_commitment, commitment, SHA256_DIGEST_LENGTH);
+
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++)
+    {
+        final_commitment[SHA256_DIGEST_LENGTH + i] = ~commitment[i];
+    }
+
+    printf("\nFinal commitment = (commitment || ~commitment):\n");
+    printf("\nWith commitment = SHA256(SHA256(m) || r)\n");
+    printf("\n\nFinal commitment (64 bytes):\n");
+    print_hex(final_commitment, 2 * SHA256_DIGEST_LENGTH);
 
     return 0;
 }

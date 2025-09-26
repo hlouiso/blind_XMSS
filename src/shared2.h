@@ -10,10 +10,6 @@
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 
-#include "omp.h"
-
-#define VERBOSE FALSE
-
 extern bool first;
 extern const int COMMIT_KEY_LEN;
 extern const int COMMIT_LEN;
